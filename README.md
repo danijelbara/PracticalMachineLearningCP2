@@ -33,6 +33,6 @@ The submission should consist of a link to (this) Github repo with the R markdow
     </body>
 </html>
 
-The HTML file is in the gh-pages branch.
-The R markdown file (Rmd) is in the master branch.
+The HTML file is in the `gh-pages` branch.
+The R markdown file (Rmd) is in the `master` branch.
 
