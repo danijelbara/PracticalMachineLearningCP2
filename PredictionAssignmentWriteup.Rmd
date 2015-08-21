@@ -1,0 +1,172 @@
+#Prediction Assignment Writeup
+
+> Author: Danijel Bara, GitHub: https://github.com/danijelbara/PML_CourseProject2
+```{r}
+message(sprintf("Run time: %s\nR version: %s", Sys.time(), R.Version()$version.string))
+```
+##Background
+
+> Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways:
+
+> * Class A - exactly according to the specification
+* Class B - throwing the elbows to the front
+* Class C - lifting the dumbbell only halfway
+* Class D - lowering the dumbbell only halfway
+* Class E - throwing the hips to the front
+
+> Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
+> More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+## Data
+
+> The training data for this project are available here: 
+> https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+> The test data are available here: 
+> https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+> The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+## What you should submit
+
+> The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+> 1. Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
+> 2. You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details. 
+
+## Reproducibility
+
+> Due to security concerns with the exchange of R code, your code will not be run during the evaluation by your classmates. Please be sure that if they download the repo, they will be able to view the compiled HTML version of your analysis.
+
+## Selecting predictors
+
+### The following packages are required for this analysis.
+
+```{r}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+
+### Set Seed
+
+set.seed(1234)
+```
+
+## Getting and cleaning data
+
+### Setting train and test urls
+```{r}
+TrainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+TestUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+### Download, reading and cleaning files
+```{r}
+TrainData <- "pml-training.csv"
+
+if (file.exists(TrainData)) {
+        Train.csv <- read.csv(TrainData, na.strings=c("NA","#DIV/0!",""))
+} else { 
+        download.file(TrainUrl,TrainData)
+        Train.csv <- read.csv(TrainData, na.strings=c("NA","#DIV/0!",""))
+        }                           
+
+TestData <-  "pml-testing.csv"
+
+if (file.exists(TestData)) {
+        Test.csv <- read.csv(TestData, na.strings=c("NA","#DIV/0!",""))
+} else { 
+        download.file(TestUrl,TestData)
+        Test.csv <- read.csv(TestData, na.strings=c("NA","#DIV/0!",""))
+}
+# Number of variables check
+dim(Train.csv)
+dim(Test.csv)
+
+# Delete columns with all missing values
+Train.csv_ <- Train.csv[,colSums(is.na(Train.csv)) == 0]
+Test.csv_ <- Test.csv[,colSums(is.na(Test.csv)) == 0]
+
+# Delete variables are irrelevant to our current project: user_name, raw_timestamp_part_1, raw_timestamp_part_,2 cvtd_timestamp, new_window, and  num_window (columns 1 to 7). 
+Train.csv_ <- Train.csv_[,-c(1:7)]
+Test.csv_ <- Test.csv_[,-c(1:7)]
+
+# Checking for the number of variables and observations for the new data set
+dim(Train.csv_)
+dim(Test.csv_)
+```
+
+###Partioning Training data set into two data sets, 70% for Training, 30% for Testing:
+
+```{r}
+PartTrain <- createDataPartition(y=Train.csv_$classe, p=0.7, list=FALSE)
+Training <- Train.csv_[PartTrain, ]; Testing <- Train.csv[-PartTrain, ]
+dim(Training) 
+dim(Testing)
+```
+
+### Plot with the variable *classe* which contains levels from A to E. 
+```{r}
+plot(Training$classe, 
+     col="green", 
+     main="Levels of variable classe within the Training data set", 
+     xlab="Classe", 
+     ylab="Frequency", 
+     ylim = c(0,4000)
+     )
+# According to the plot, Level A is the most frequent while level D is the least frequent.
+```
+
+## Prediction Model 1 - Decision Tree
+
+```{r}
+PModel_1 <- rpart(classe ~ ., data=Training, method="class")
+
+# Predicting
+Prediction_1 <- predict(PModel_1, Testing, type = "class")
+
+# Plotting
+fancyRpartPlot(PModel_1, cex=.4,under.cex=2,shadow.offset=0)
+```
+
+Using confusion Matrix to test results:
+```{r}
+confusionMatrix(Prediction_1, Testing$classe)
+```
+
+## Prediction Model 2 - Random Forest
+```{r}
+PModel_2 <- randomForest(classe ~., data=Training, method="class")
+
+# Predicting
+Prediction_2 <- predict(PModel_2, Testing, type = "class")
+
+# Testing results on Testing data set
+confusionMatrix(Prediction_2, Testing$classe)
+```
+
+Random Forest yielded better result as it has a higher accuracy of 0.9959, as compared to Decision Tree model, which has an accuracy of 0.7385. The Random Forests model is choosen.
+The expected out-of-sample error is estimated at 0.005, or 0.5% accuracy for predictions made against the cross-validation set. 
+
+## Prepare the submission. 
+(using COURSERA provided code)
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+```
+The final outcome is suppressed from presentation in keeping with the terms of the Coursera Honor Code.
+
+```{r}
+Prediction_Final <- predict(PModel_2, Test.csv, type = "class")
+
+pml_write_files(Prediction_Final)
+```
+
+
